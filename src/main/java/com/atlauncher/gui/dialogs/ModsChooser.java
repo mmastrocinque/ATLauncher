@@ -22,7 +22,9 @@ import java.awt.Dimension;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.swing.JButton;
 import javax.swing.JDialog;
@@ -187,9 +189,12 @@ public class ModsChooser extends JDialog {
         int count1 = 0;
         int count2 = 0;
 
-        for (int i = 0; i < installer.allMods.size();) {
+        List<Mod> orderedMods = installer.allMods.stream().sorted(Comparator.comparing(Mod::getName))
+                .collect(Collectors.toList());
+
+        for (int i = 0; i < orderedMods.size();) {
             boolean skip = false;
-            final Mod mod = installer.allMods.get(i);
+            final Mod mod = orderedMods.get(i);
             if (installer.isServer && !mod.installOnServer()) {
                 continue;
             }

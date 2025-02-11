@@ -18,10 +18,8 @@
 package com.atlauncher.gui.tabs.settings;
 
 import java.awt.GridBagConstraints;
-import java.awt.event.ItemEvent;
 
 import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
 
 import org.mini2Dx.gettext.GetText;
 
@@ -40,34 +38,6 @@ public class LoggingSettingsTab extends AbstractSettingsTab {
 
     @Override
     protected void onShow() {
-        // Forge Logging Level
-        gbc.gridx = 0;
-        gbc.gridy++;
-        gbc.insets = UIConstants.LABEL_INSETS;
-        gbc.anchor = GridBagConstraints.BASELINE_TRAILING;
-        JLabelWithHover forgeLoggingLevelLabel = new JLabelWithHover(GetText.tr("Forge Logging Level") + ":", HELP_ICON,
-            "<html>" + GetText.tr("This determines the type of logging that Forge should report back to you.")
-                + "</html>");
-        add(forgeLoggingLevelLabel, gbc);
-
-        gbc.gridx++;
-        gbc.insets = UIConstants.FIELD_INSETS;
-        gbc.anchor = GridBagConstraints.BASELINE_LEADING;
-        JComboBox<String> forgeLoggingLevel = new JComboBox<>();
-        forgeLoggingLevel.addItem("SEVERE");
-        forgeLoggingLevel.addItem("WARNING");
-        forgeLoggingLevel.addItem("INFO");
-        forgeLoggingLevel.addItem("CONFIG");
-        forgeLoggingLevel.addItem("FINE");
-        forgeLoggingLevel.addItem("FINER");
-        forgeLoggingLevel.addItem("FINEST");
-        forgeLoggingLevel.addItemListener(itemEvent -> {
-            if (itemEvent.getStateChange() == ItemEvent.SELECTED)
-                viewModel.setLoggingLevel((String) itemEvent.getItem());
-        });
-        addDisposable(viewModel.getForgeLoggingLevel().subscribe(forgeLoggingLevel::setSelectedItem));
-        add(forgeLoggingLevel, gbc);
-
         // Enable Logging
 
         gbc.gridx = 0;

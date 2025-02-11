@@ -100,10 +100,8 @@ import com.atlauncher.data.minecraft.JavaRuntimeManifest;
 import com.atlauncher.data.minecraft.JavaRuntimeManifestFileType;
 import com.atlauncher.data.minecraft.JavaRuntimes;
 import com.atlauncher.data.minecraft.Library;
-import com.atlauncher.data.minecraft.LoggingFile;
 import com.atlauncher.data.minecraft.MinecraftVersion;
 import com.atlauncher.data.minecraft.MojangAssetIndex;
-import com.atlauncher.data.minecraft.VersionManifestVersion;
 import com.atlauncher.data.minecraft.VersionManifestVersionType;
 import com.atlauncher.data.minecraft.loaders.LoaderType;
 import com.atlauncher.data.minecraft.loaders.LoaderVersion;
@@ -139,6 +137,7 @@ import com.atlauncher.managers.AccountManager;
 import com.atlauncher.managers.ConfigManager;
 import com.atlauncher.managers.CurseForgeUpdateManager;
 import com.atlauncher.managers.DialogManager;
+import com.atlauncher.managers.FTBUpdateManager;
 import com.atlauncher.managers.InstanceManager;
 import com.atlauncher.managers.LWJGLManager;
 import com.atlauncher.managers.LogManager;
@@ -338,7 +337,9 @@ public class Instance extends MinecraftVersion {
         if (launcher.vanillaInstance) {
             return;
         } else if (isExternalPack()) {
-            if (isCurseForgePack()) {
+            if (isFTBPack()) {
+                version = Integer.toString(FTBUpdateManager.getLatestVersion(this).id);
+            } else if (isCurseForgePack()) {
                 version = Integer.toString(CurseForgeUpdateManager.getLatestVersion(this).id);
             } else if (isTechnicPack()) {
                 if (isTechnicSolderPack()) {
@@ -376,7 +377,9 @@ public class Instance extends MinecraftVersion {
         }
 
         if (isExternalPack()) {
-            if (isCurseForgePack()) {
+            if (isFTBPack()) {
+                return hasUpdateBeenIgnored(Integer.toString(FTBUpdateManager.getLatestVersion(this).id));
+            } else if (isCurseForgePack()) {
                 return hasUpdateBeenIgnored(Integer.toString(CurseForgeUpdateManager.getLatestVersion(this).id));
             } else if (isTechnicPack()) {
                 if (isTechnicSolderPack()) {
@@ -431,31 +434,6 @@ public class Instance extends MinecraftVersion {
         PerformanceManager.start();
         OkHttpClient httpClient = Network.createProgressClient(progressDialog);
 
-        // make sure latest manifest is being used
-        PerformanceManager.start("Grabbing Latest Manifest");
-        try {
-            progressDialog.setLabel(GetText.tr("Grabbing Latest Manifest"));
-            VersionManifestVersion minecraftVersionManifest = MinecraftManager
-                    .getMinecraftVersion(id);
-
-            com.atlauncher.network.Download download = com.atlauncher.network.Download.build()
-                    .setUrl(minecraftVersionManifest.url).hash(minecraftVersionManifest.sha1)
-                    .size(minecraftVersionManifest.size)
-                    .downloadTo(FileSystem.MINECRAFT_VERSIONS_JSON.resolve(minecraftVersionManifest.id + ".json"))
-                    .withHttpClient(httpClient);
-
-            MinecraftVersion minecraftVersion = download.asClass(MinecraftVersion.class);
-
-            if (minecraftVersion != null) {
-                setUpdatedValues(minecraftVersion);
-                save();
-            }
-        } catch (Exception e) {
-            // ignored
-        }
-        progressDialog.doneTask();
-        PerformanceManager.end("Grabbing Latest Manifest");
-
         PerformanceManager.start("Downloading Minecraft");
         try {
             progressDialog.setLabel(GetText.tr("Downloading Minecraft"));
@@ -476,35 +454,6 @@ public class Instance extends MinecraftVersion {
             return false;
         }
         PerformanceManager.end("Downloading Minecraft");
-
-        if (logging != null) {
-            PerformanceManager.start("Downloading Logging Config");
-            try {
-                progressDialog.setLabel(GetText.tr("Downloading Logging Config"));
-
-                LoggingFile loggingFile = logging.client.file;
-
-                com.atlauncher.network.Download loggerDownload = com.atlauncher.network.Download.build()
-                        .setUrl(loggingFile.url).hash(loggingFile.sha1)
-                        .size(loggingFile.size).downloadTo(FileSystem.RESOURCES_LOG_CONFIGS.resolve(loggingFile.id))
-                        .withHttpClient(httpClient);
-
-                if (loggerDownload.needToDownload()) {
-                    progressDialog.setTotalBytes(loggingFile.size);
-                    loggerDownload.downloadFile();
-                }
-
-                progressDialog.doneTask();
-            } catch (IOException e) {
-                LogManager.logStackTrace(e);
-                PerformanceManager.end("Downloading Logging Config");
-                PerformanceManager.end();
-                return false;
-            }
-            PerformanceManager.end("Downloading Logging Config");
-        } else {
-            progressDialog.doneTask();
-        }
 
         // download libraries
         PerformanceManager.start("Downloading Libraries");
@@ -926,7 +875,7 @@ public class Instance extends MinecraftVersion {
         }
 
         ProgressDialog<Boolean> prepareDialog = new ProgressDialog<>(GetText.tr("Preparing For Launch"),
-                9,
+                7,
                 GetText.tr("Preparing For Launch"));
         prepareDialog.addThread(new Thread(() -> {
             LogManager.info("Preparing for launch!");
@@ -1101,14 +1050,15 @@ public class Instance extends MinecraftVersion {
                     }
 
                     if (!LogManager.showDebug) {
-                        line = line.replace(account.minecraftUsername, "**MINECRAFTUSERNAME**");
-                        line = line.replace(account.username, "**MINECRAFTUSERNAME**");
-                        line = line.replace(account.uuid, "**UUID**");
-                        line = line.replace(replaceUUID, "**UUID**");
+                        line = line.replaceAll(account.minecraftUsername, "**MINECRAFTUSERNAME**");
+                        line = line.replaceAll(account.username, "**MINECRAFTUSERNAME**");
+                        line = line.replaceAll(account.uuid, "**UUID**");
+                        line = line.replaceAll(replaceUUID, "**UUID**");
+                        line = line.replaceAll("\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b", "**IPADDRESS**");
                     }
 
                     if (account.getAccessToken() != null) {
-                        line = line.replace(account.getAccessToken(), "**ACCESSTOKEN**");
+                        line = line.replaceAll(account.getAccessToken(), "**ACCESSTOKEN**");
                     }
 
                     if (line.contains("log4j:")) {
@@ -1354,7 +1304,7 @@ public class Instance extends MinecraftVersion {
                 File downloadsFolderFile2 = new File(FileSystem.getUserDownloadsPath().toFile(), filename2);
                 if (downloadsFolderFile.exists()) {
                     Utils.moveFile(downloadsFolderFile, fileLocation, true);
-                } else if (downloadsFolderFile.exists()) {
+                } else if (downloadsFolderFile2.exists()) {
                     Utils.moveFile(downloadsFolderFile2, fileLocation, true);
                 }
 
@@ -2012,56 +1962,54 @@ public class Instance extends MinecraftVersion {
         CurseForgeManifest manifest = new CurseForgeManifest();
 
         // for any mods not from CurseForge, scan for them on CurseForge
-        if (!App.settings.dontCheckModsOnCurseForge) {
-            Map<Long, DisableableMod> murmurHashes = new HashMap<>();
+        Map<Long, DisableableMod> murmurHashes = new HashMap<>();
 
-            this.launcher.mods.stream()
-                    .filter(m -> !m.disabled && m.type != com.atlauncher.data.Type.worlds)
-                    .forEach(dm -> {
-                        try {
-                            long hash = Hashing.murmur(dm.getFile(this.ROOT, this.id).toPath());
-                            murmurHashes.put(hash, dm);
-                        } catch (Throwable t) {
-                            LogManager.logStackTrace(t);
-                        }
-                    });
+        this.launcher.mods.stream()
+                .filter(m -> !m.disabled && m.type != com.atlauncher.data.Type.worlds)
+                .forEach(dm -> {
+                    try {
+                        long hash = Hashing.murmur(dm.getFile(this.ROOT, this.id).toPath());
+                        murmurHashes.put(hash, dm);
+                    } catch (Throwable t) {
+                        LogManager.logStackTrace(t);
+                    }
+                });
 
-            if (!murmurHashes.isEmpty()) {
-                CurseForgeFingerprint fingerprintResponse = CurseForgeApi
-                        .checkFingerprints(murmurHashes.keySet().stream().toArray(Long[]::new));
+        if (!murmurHashes.isEmpty()) {
+            CurseForgeFingerprint fingerprintResponse = CurseForgeApi
+                    .checkFingerprints(murmurHashes.keySet().stream().toArray(Long[]::new));
 
-                if (fingerprintResponse != null && fingerprintResponse.exactMatches != null) {
-                    int[] projectIdsFound = fingerprintResponse.exactMatches.stream().mapToInt(em -> em.id)
-                            .toArray();
+            if (fingerprintResponse != null && fingerprintResponse.exactMatches != null) {
+                int[] projectIdsFound = fingerprintResponse.exactMatches.stream().mapToInt(em -> em.id)
+                        .toArray();
 
-                    if (projectIdsFound.length != 0) {
-                        Map<Integer, CurseForgeProject> foundProjects = CurseForgeApi
-                                .getProjectsAsMap(projectIdsFound);
+                if (projectIdsFound.length != 0) {
+                    Map<Integer, CurseForgeProject> foundProjects = CurseForgeApi
+                            .getProjectsAsMap(projectIdsFound);
 
-                        if (foundProjects != null) {
-                            fingerprintResponse.exactMatches.stream()
-                                    .filter(em -> em != null && em.file != null
-                                            && murmurHashes.containsKey(em.file.packageFingerprint))
-                                    .forEach(foundMod -> {
-                                        DisableableMod dm = murmurHashes
-                                                .get(foundMod.file.packageFingerprint);
+                    if (foundProjects != null) {
+                        fingerprintResponse.exactMatches.stream()
+                                .filter(em -> em != null && em.file != null
+                                        && murmurHashes.containsKey(em.file.packageFingerprint))
+                                .forEach(foundMod -> {
+                                    DisableableMod dm = murmurHashes
+                                            .get(foundMod.file.packageFingerprint);
 
-                                        // add CurseForge information
-                                        dm.curseForgeProjectId = foundMod.id;
-                                        dm.curseForgeFile = foundMod.file;
-                                        dm.curseForgeFileId = foundMod.file.id;
+                                    // add CurseForge information
+                                    dm.curseForgeProjectId = foundMod.id;
+                                    dm.curseForgeFile = foundMod.file;
+                                    dm.curseForgeFileId = foundMod.file.id;
 
-                                        CurseForgeProject curseForgeProject = foundProjects
-                                                .get(foundMod.id);
+                                    CurseForgeProject curseForgeProject = foundProjects
+                                            .get(foundMod.id);
 
-                                        if (curseForgeProject != null) {
-                                            dm.curseForgeProject = curseForgeProject;
-                                        }
+                                    if (curseForgeProject != null) {
+                                        dm.curseForgeProject = curseForgeProject;
+                                    }
 
-                                        LogManager.debug("Found matching mod from CurseForge called "
-                                                + dm.curseForgeFile.displayName);
-                                    });
-                        }
+                                    LogManager.debug("Found matching mod from CurseForge called "
+                                            + dm.curseForgeFile.displayName);
+                                });
                     }
                 }
             }
@@ -2090,7 +2038,8 @@ public class Instance extends MinecraftVersion {
         manifest.version = version;
         manifest.author = author;
         manifest.files = this.launcher.mods.stream()
-                .filter(m -> !m.disabled && m.isFromCurseForge() && m.type != com.atlauncher.data.Type.worlds)
+                .filter(m -> !m.disabled && m.isFromCurseForge() && m.hasFullCurseForgeInformation()
+                        && m.type != com.atlauncher.data.Type.worlds)
                 .filter(mod -> overrides.stream()
                         .anyMatch(path -> getRoot().relativize(mod.getPath(this)).startsWith(path)))
                 .collect(Collectors.collectingAndThen(
@@ -2131,7 +2080,8 @@ public class Instance extends MinecraftVersion {
         // create modlist.html
         StringBuilder sb = new StringBuilder("<ul>");
         this.launcher.mods.stream()
-                .filter(m -> !m.disabled && m.isFromCurseForge() && m.type != com.atlauncher.data.Type.worlds)
+                .filter(m -> !m.disabled && m.isFromCurseForge() && m.hasFullCurseForgeInformation()
+                        && m.type != com.atlauncher.data.Type.worlds)
                 // #875 - Non available mods/files will be rejected by CurseForge
                 .filter(mod -> mod.curseForgeFile.isAvailable)
                 .filter(mod -> overrides.stream()
@@ -2184,7 +2134,8 @@ public class Instance extends MinecraftVersion {
 
         // log files that are not available on CurseForge anymore and put in overrides
         launcher.mods.stream()
-                .filter(m -> !m.disabled && m.isFromCurseForge())
+                .filter(m -> !m.disabled && m.isFromCurseForge() && m
+                        .hasFullCurseForgeInformation())
                 .filter(mod -> !mod.curseForgeFile.isAvailable)
                 .forEach(mod -> LogManager.warn(String.format(
                         "File %s is no longer available according to the CurseForge api, so putting it in overrides",
@@ -2192,7 +2143,8 @@ public class Instance extends MinecraftVersion {
 
         // remove files that come from CurseForge or aren't disabled
         launcher.mods.stream()
-                .filter(m -> !m.disabled && m.isFromCurseForge() && m.type != com.atlauncher.data.Type.worlds)
+                .filter(m -> !m.disabled && m.isFromCurseForge() && m.hasFullCurseForgeInformation()
+                        && m.type != com.atlauncher.data.Type.worlds)
                 // #875 - Non available mods/files will be rejected by CurseForge
                 .filter(mod -> mod.curseForgeFile.isAvailable)
                 .forEach(mod -> {
@@ -2230,37 +2182,35 @@ public class Instance extends MinecraftVersion {
         ModrinthModpackManifest manifest = new ModrinthModpackManifest();
 
         // for any mods not from Modrinth, scan for them on Modrinth
-        if (!App.settings.dontCheckModsOnModrinth) {
-            List<DisableableMod> nonModrinthMods = this.launcher.mods.parallelStream()
-                    .filter(m -> !m.disabled && !m.isFromModrinth() && m.getFile(this).exists())
-                    .collect(Collectors.toList());
+        List<DisableableMod> nonModrinthMods = this.launcher.mods.parallelStream()
+                .filter(m -> !m.disabled && !m.isFromModrinth() && m.getFile(this).exists())
+                .collect(Collectors.toList());
 
-            String[] sha1Hashes = nonModrinthMods.parallelStream()
-                    .map(m -> Hashing.sha1(m.getFile(this).toPath()).toString()).toArray(String[]::new);
+        String[] sha1Hashes = nonModrinthMods.parallelStream()
+                .map(m -> Hashing.sha1(m.getFile(this).toPath()).toString()).toArray(String[]::new);
 
-            Map<String, ModrinthVersion> modrinthVersions = ModrinthApi.getVersionsFromSha1Hashes(sha1Hashes);
+        Map<String, ModrinthVersion> modrinthVersions = ModrinthApi.getVersionsFromSha1Hashes(sha1Hashes);
 
-            if (!modrinthVersions.isEmpty()) {
-                Map<String, ModrinthProject> modrinthProjects = ModrinthApi.getProjectsAsMap(
-                        modrinthVersions.values().parallelStream().map(mv -> mv.projectId).toArray(String[]::new));
+        if (!modrinthVersions.isEmpty()) {
+            Map<String, ModrinthProject> modrinthProjects = ModrinthApi.getProjectsAsMap(
+                    modrinthVersions.values().parallelStream().map(mv -> mv.projectId).toArray(String[]::new));
 
-                nonModrinthMods.parallelStream().forEach(mod -> {
-                    String hash = Hashing.sha1(mod.getFile(this).toPath()).toString();
+            nonModrinthMods.parallelStream().forEach(mod -> {
+                String hash = Hashing.sha1(mod.getFile(this).toPath()).toString();
 
-                    if (modrinthVersions.containsKey(hash)) {
-                        ModrinthVersion modrinthVersion = modrinthVersions.get(hash);
+                if (modrinthVersions.containsKey(hash)) {
+                    ModrinthVersion modrinthVersion = modrinthVersions.get(hash);
 
-                        mod.modrinthVersion = modrinthVersion;
+                    mod.modrinthVersion = modrinthVersion;
 
-                        LogManager.debug("Found matching version from Modrinth called " + mod.modrinthVersion.name);
+                    LogManager.debug("Found matching version from Modrinth called " + mod.modrinthVersion.name);
 
-                        if (modrinthProjects.containsKey(modrinthVersions.get(hash).projectId)) {
-                            mod.modrinthProject = modrinthProjects.get(modrinthVersion.projectId);
-                        }
+                    if (modrinthProjects.containsKey(modrinthVersions.get(hash).projectId)) {
+                        mod.modrinthProject = modrinthProjects.get(modrinthVersion.projectId);
                     }
-                });
-                this.save();
-            }
+                }
+            });
+            this.save();
         }
 
         manifest.formatVersion = 1;
@@ -2407,6 +2357,7 @@ public class Instance extends MinecraftVersion {
         File newDir = getRoot().toFile();
         if (oldDir.renameTo(newDir)) {
             this.save();
+            InstanceManager.updateInstance(this);
             return true;
         } else {
             this.launcher.name = oldName;
@@ -2531,8 +2482,8 @@ public class Instance extends MinecraftVersion {
         return launcher.multiMCManifest != null;
     }
 
-    public boolean isModpacksChPack() {
-        return launcher.modpacksChPackManifest != null && launcher.modpacksChPackVersionManifest != null;
+    public boolean isFTBPack() {
+        return launcher.ftbPackManifest != null && launcher.ftbPackVersionManifest != null;
     }
 
     public boolean isModrinthPack() {
@@ -2553,13 +2504,15 @@ public class Instance extends MinecraftVersion {
     }
 
     public boolean isExternalPack() {
-        return isOldCurseForgePack() || isCurseForgePack() || isModpacksChPack() || isModrinthImport()
+        return isOldCurseForgePack() || isCurseForgePack() || isFTBPack() || isModrinthImport()
                 || isMultiMcImport() || isTechnicPack() || isModrinthPack();
     }
 
     public boolean isUpdatableExternalPack() {
         return isExternalPack() && ((isCurseForgePack()
                 && ConfigManager.getConfigItem("platforms.curseforge.modpacksEnabled", true))
+                || (isFTBPack()
+                        && ConfigManager.getConfigItem("platforms.ftb.modpacksEnabled", true))
                 || (isTechnicPack() && ConfigManager.getConfigItem("platforms.technic.modpacksEnabled", true))
                 || (isModrinthPack()
                         && ConfigManager.getConfigItem("platforms.modrinth.modpacksEnabled", true)));
@@ -2570,8 +2523,8 @@ public class Instance extends MinecraftVersion {
             return "CurseForge";
         }
 
-        if (isModpacksChPack()) {
-            return "ModpacksCh";
+        if (isFTBPack()) {
+            return "FTB";
         }
 
         if (isTechnicSolderPack()) {
@@ -2606,8 +2559,8 @@ public class Instance extends MinecraftVersion {
             return "CurseForgeInstance";
         }
 
-        if (isModpacksChPack()) {
-            return "ModpacksChInstance";
+        if (isFTBPack()) {
+            return "FTBInstance";
         }
 
         if (isTechnicSolderPack()) {
@@ -2697,7 +2650,12 @@ public class Instance extends MinecraftVersion {
             String time = timestamp.toString().replaceAll("[^0-9]", "_");
             String filename = getSafeName() + "-" + time.substring(0, time.lastIndexOf("_")) + ".zip";
 
-            ArchiveUtils.createZip(getRoot(), FileSystem.BACKUPS.resolve(filename),
+            Path backupsPath = FileSystem.BACKUPS;
+            if (App.settings.backupsPath != null) {
+                backupsPath = Paths.get(App.settings.backupsPath);
+            }
+
+            ArchiveUtils.createZip(getRoot(), backupsPath.resolve(filename),
                     ZipNameMapper.getMapperForBackupMode(backupMode));
 
             dialog.dispose();
@@ -3390,6 +3348,7 @@ public class Instance extends MinecraftVersion {
         PerformanceManager.end("Instance::scanMissingMods - CheckForAddedMods");
 
         PerformanceManager.start("Instance::scanMissingMods - CheckForRemovedMods");
+
         // next remove any mods that the no longer exist in the filesystem
         List<DisableableMod> removedMods = launcher.mods.parallelStream().filter(mod -> {
             if (!mod.wasSelected || mod.skipped || mod.type != com.atlauncher.data.Type.mods) {
@@ -3515,8 +3474,8 @@ public class Instance extends MinecraftVersion {
             return launcher.curseForgeProject.hasWebsiteUrl();
         }
 
-        if (isModpacksChPack()) {
-            return launcher.modpacksChPackManifest.hasTag("FTB");
+        if (isFTBPack()) {
+            return launcher.ftbPackManifest.hasTag("FTB");
         }
 
         return isModrinthPack() || isTechnicPack();
@@ -3527,8 +3486,8 @@ public class Instance extends MinecraftVersion {
             return launcher.curseForgeProject.getWebsiteUrl();
         }
 
-        if (isModpacksChPack() && launcher.modpacksChPackManifest.hasTag("FTB")) {
-            return launcher.modpacksChPackManifest.getWebsiteUrl();
+        if (isFTBPack() && launcher.ftbPackManifest.hasTag("FTB")) {
+            return launcher.ftbPackManifest.getWebsiteUrl();
         }
 
         if (isModrinthPack()) {

@@ -33,11 +33,17 @@ import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.ScrollPaneConstants;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
+import javax.swing.text.AbstractDocument;
+import javax.swing.text.AttributeSet;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DocumentFilter;
 
 import org.mini2Dx.gettext.GetText;
 
@@ -48,20 +54,22 @@ import com.atlauncher.data.CheckState;
 import com.atlauncher.data.ScreenResolution;
 import com.atlauncher.gui.components.JLabelWithHover;
 import com.atlauncher.listener.DelayedSavingKeyListener;
-import com.atlauncher.listener.StatefulTextKeyAdapter;
 import com.atlauncher.managers.DialogManager;
 import com.atlauncher.utils.ComboItem;
 import com.atlauncher.utils.OS;
 import com.atlauncher.utils.Utils;
 import com.atlauncher.viewmodel.impl.settings.JavaSettingsViewModel;
+import com.formdev.flatlaf.ui.FlatScrollPaneBorder;
 
 public class JavaSettingsTab extends AbstractSettingsTab {
     private final JavaSettingsViewModel viewModel;
 
     private JTextField javaPath;
     private JLabelWithHover javaPathChecker;
-    private JLabelWithHover javaParamChecker;
     private JTextArea javaParameters;
+    private JLabelWithHover javaParamChecker;
+    private JTextField javaInstallLocation;
+    private JLabelWithHover javaInstallLocationChecker;
 
     public JavaSettingsTab(JavaSettingsViewModel viewModel) {
         this.viewModel = viewModel;
@@ -379,12 +387,30 @@ public class JavaSettingsTab extends AbstractSettingsTab {
         gbc.gridx++;
         gbc.insets = UIConstants.LABEL_INSETS;
         gbc.anchor = GridBagConstraints.FIRST_LINE_START;
+        JScrollPane javaParametersScrollPane = new JScrollPane(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        javaParametersScrollPane.setBorder(new FlatScrollPaneBorder());
+        javaParametersScrollPane.setMaximumSize(new Dimension(1000, 200));
 
         JPanel javaParametersPanel = new JPanel();
         javaParametersPanel.setLayout(new BoxLayout(javaParametersPanel, BoxLayout.X_AXIS));
         javaParametersPanel.setAlignmentY(Component.TOP_ALIGNMENT);
 
         javaParameters = new JTextArea(6, 40);
+        ((AbstractDocument) javaParameters.getDocument()).setDocumentFilter(
+                new DocumentFilter() {
+                    @Override
+                    public void insertString(FilterBypass fb, int offset, String string, AttributeSet attr)
+                            throws BadLocationException {
+                        fb.insertString(offset, string.replaceAll("[\n\r]", ""), attr);
+                    }
+
+                    @Override
+                    public void replace(FilterBypass fb, int offset, int length, String text, AttributeSet attrs)
+                            throws BadLocationException {
+                        fb.replace(offset, length, text.replaceAll("[\n\r]", ""), attrs);
+                    }
+                });
         javaParamChecker = new JLabelWithHover("", null, null);
         javaParameters.setLineWrap(true);
         javaParameters.setWrapStyleWord(true);
@@ -393,15 +419,17 @@ public class JavaSettingsTab extends AbstractSettingsTab {
                 () -> viewModel.setJavaParams(javaParameters.getText()),
                 viewModel::setJavaParamsPending));
         addDisposable(viewModel.getJavaParams().subscribe(params -> {
-            if (!javaParameters.getText().equals(params))
+            if (!javaParameters.getText().equals(params)) {
                 javaParameters.setText(params);
+            }
         }));
         addDisposable(viewModel.getJavaParamsChecker().subscribe(this::setJavaParamCheckState));
 
         JButton javaParametersResetButton = new JButton(GetText.tr("Reset"));
         javaParametersResetButton.addActionListener(e -> viewModel.resetJavaParams());
 
-        javaParametersPanel.add(javaParameters);
+        javaParametersScrollPane.setViewportView(javaParameters);
+        javaParametersPanel.add(javaParametersScrollPane);
         javaParametersPanel.add(Box.createHorizontalStrut(5));
 
         Box paramsResetBox = Box.createVerticalBox();
@@ -413,58 +441,64 @@ public class JavaSettingsTab extends AbstractSettingsTab {
 
         add(javaParametersPanel, gbc);
 
-        // Base Java Install Folder
+        // Jave Install Location
 
         gbc.gridx = 0;
         gbc.gridy++;
         gbc.gridwidth = 1;
         gbc.insets = UIConstants.LABEL_INSETS;
         gbc.anchor = GridBagConstraints.BASELINE_TRAILING;
-        JLabelWithHover baseJavaInstallFolderLabel = new JLabelWithHover(GetText.tr("Java Install Location") + ":",
+        JLabelWithHover javaInstallLocationLabel = new JLabelWithHover(GetText.tr("Java Install Location") + ":",
                 HELP_ICON,
                 new HTMLBuilder().center().split(100).text(GetText.tr(
                         "This setting allows you to specify a common location that you install all your Java installs to. This helps find your installed Java installs easier if you install them all within 1 folder."))
                         .build());
-        add(baseJavaInstallFolderLabel, gbc);
+        add(javaInstallLocationLabel, gbc);
 
         gbc.gridx++;
         gbc.insets = UIConstants.LABEL_INSETS;
         gbc.anchor = GridBagConstraints.BASELINE_LEADING;
-        JPanel baseJavaInstallFolderPanel = new JPanel();
-        baseJavaInstallFolderPanel.setLayout(new BoxLayout(baseJavaInstallFolderPanel, BoxLayout.X_AXIS));
+        JPanel javaInstallLocationPanel = new JPanel();
+        javaInstallLocationPanel.setLayout(new BoxLayout(javaInstallLocationPanel, BoxLayout.X_AXIS));
 
-        JTextField baseJavaInstallFolder = new JTextField(32);
-        baseJavaInstallFolder.setText(App.settings.baseJavaInstallFolder);
-        baseJavaInstallFolder.addKeyListener(new StatefulTextKeyAdapter(
-                (e) -> viewModel.setBaseInstallFolder(baseJavaInstallFolder.getText())));
-        addDisposable(viewModel.getBaseInstallFolder().subscribe(folder -> {
-            if (!baseJavaInstallFolder.getText().equals(folder))
-                baseJavaInstallFolder.setText(folder);
+        javaInstallLocation = new JTextField(32);
+        javaInstallLocationChecker = new JLabelWithHover("", null, null);
+        javaInstallLocation.addKeyListener(new DelayedSavingKeyListener(
+                500,
+                () -> viewModel.setJavaInstallLocation(javaInstallLocation.getText()),
+                viewModel::setJavaInstallLocationPending));
+
+        addDisposable(viewModel.getJavaInstallLocationObservable().subscribe(folder -> {
+            if (!javaInstallLocation.getText().equals(folder))
+                javaInstallLocation.setText(folder);
         }));
+        javaInstallLocation.setText(App.settings.javaInstallLocation);
+        addDisposable(viewModel.getJavaInstallLocationChecker().subscribe(this::setJavaInstallLocationState));
 
-        JButton baseJavaInstallFolderResetButton = new JButton(GetText.tr("Reset"));
-        baseJavaInstallFolderResetButton.addActionListener(e -> viewModel.resetBaseInstallFolder());
-
-        JButton baseJavaInstallFolderBrowseButton = new JButton(GetText.tr("Browse"));
-        baseJavaInstallFolderBrowseButton.addActionListener(e -> {
+        JButton javaInstallLocationBrowseButton = new JButton(GetText.tr("Browse"));
+        javaInstallLocationBrowseButton.addActionListener(e -> {
             JFileChooser chooser = new JFileChooser();
-            chooser.setCurrentDirectory(new File(baseJavaInstallFolder.getText()));
+            chooser.setCurrentDirectory(new File(javaInstallLocation.getText()));
             chooser.setDialogTitle(GetText.tr("Select"));
             chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
             chooser.setAcceptAllFileFilterUsed(false);
 
             if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
-                viewModel.setBaseInstallFolder(chooser.getSelectedFile().getAbsolutePath());
+                viewModel.setJavaInstallLocation(chooser.getSelectedFile().getAbsolutePath());
+
+                if (!chooser.getSelectedFile().getAbsolutePath().isEmpty()) {
+                    viewModel.setJavaInstallLocationPending();
+                }
             }
         });
 
-        baseJavaInstallFolderPanel.add(baseJavaInstallFolder);
-        baseJavaInstallFolderPanel.add(Box.createHorizontalStrut(5));
-        baseJavaInstallFolderPanel.add(baseJavaInstallFolderResetButton);
-        baseJavaInstallFolderPanel.add(Box.createHorizontalStrut(5));
-        baseJavaInstallFolderPanel.add(baseJavaInstallFolderBrowseButton);
+        javaInstallLocationPanel.add(javaInstallLocation);
+        javaInstallLocationPanel.add(Box.createHorizontalStrut(5));
+        javaInstallLocationPanel.add(javaInstallLocationChecker, gbc);
+        javaInstallLocationPanel.add(Box.createHorizontalStrut(5));
+        javaInstallLocationPanel.add(javaInstallLocationBrowseButton);
 
-        add(baseJavaInstallFolderPanel, gbc);
+        add(javaInstallLocationPanel, gbc);
 
         // Start Minecraft Maximised
 
@@ -610,6 +644,28 @@ public class JavaSettingsTab extends AbstractSettingsTab {
                 itemEvent -> viewModel.setSystemOpenAL(itemEvent.getStateChange() == ItemEvent.SELECTED));
         addDisposable(viewModel.getSystemOpenAL().subscribe(useSystemOpenAl::setSelected));
         add(useSystemOpenAl, gbc);
+
+        // Use Dedicated GPU
+
+        if (OS.isLinux()) {
+            gbc.gridx = 0;
+            gbc.gridy++;
+            gbc.insets = UIConstants.LABEL_INSETS;
+            gbc.anchor = GridBagConstraints.BASELINE_TRAILING;
+            JLabelWithHover useDedicatedGpuLabel = new JLabelWithHover(GetText.tr("Use Dedicated GPU") + "?", HELP_ICON,
+                    new HTMLBuilder()
+                            .center().text(GetText.tr("Use the dedicated GPU for Minecraft.")).build());
+            add(useDedicatedGpuLabel, gbc);
+
+            gbc.gridx++;
+            gbc.insets = UIConstants.CHECKBOX_FIELD_INSETS;
+            gbc.anchor = GridBagConstraints.BASELINE_LEADING;
+            JCheckBox useDedicatedGpu = new JCheckBox();
+            useDedicatedGpu.addItemListener(
+                    itemEvent -> viewModel.setDedicatedGpu(itemEvent.getStateChange() == ItemEvent.SELECTED));
+            addDisposable(viewModel.getDedicatedGpu().subscribe(useDedicatedGpu::setSelected));
+            add(useDedicatedGpu, gbc);
+        }
     }
 
     private void showJavaPathWarning() {
@@ -635,6 +691,20 @@ public class JavaSettingsTab extends AbstractSettingsTab {
                                 .text(
                                         GetText.tr(
                                                 "The entered Java Parameters were incorrect.<br/><br/>Please remove any references to Xmx, Xms or XX:PermSize."))
+                                .build())
+                .setType(DialogManager.ERROR)
+                .show();
+    }
+
+    private void showJavaInstallLocationWarning() {
+        DialogManager.okDialog()
+                .setTitle(GetText.tr("Help"))
+                .setContent(
+                        new HTMLBuilder()
+                                .center()
+                                .text(
+                                        GetText.tr(
+                                                "The Java Install Location Path you set is incorrect.<br/><br/>Please verify it points to a folder and try again."))
                                 .build())
                 .setType(DialogManager.ERROR)
                 .show();
@@ -667,23 +737,25 @@ public class JavaSettingsTab extends AbstractSettingsTab {
     }
 
     private void resetJavaPathCheckLabel() {
-        setLabelState(javaPathChecker, "Visualize java path checker", "/assets/icon/question.png");
+        javaPathChecker.setText("");
+        javaPathChecker.setIcon(null);
+        javaPathChecker.setToolTipText(null);
     }
 
     private void setJavaPathCheckState(CheckState state) {
         if (state == CheckState.NotChecking) {
             resetJavaPathCheckLabel();
         } else if (state == CheckState.CheckPending) {
-            setLabelState(javaPathChecker, "Java path change pending", "/assets/icon/warning.png");
+            setLabelState(javaPathChecker, GetText.tr("Java path change pending"), "/assets/icon/warning.png");
         } else if (state == CheckState.Checking) {
-            setLabelState(javaPathChecker, "Checking java path", "/assets/image/loading-bars-small.gif");
+            setLabelState(javaPathChecker, GetText.tr("Checking java path"), "/assets/image/loading-bars-small.gif");
 
             javaPath.setEnabled(false);
         } else if (state instanceof CheckState.Checked) {
             if (((CheckState.Checked) state).valid) {
                 resetJavaPathCheckLabel();
             } else {
-                setLabelState(javaPathChecker, "Invalid!", "/assets/icon/error.png");
+                setLabelState(javaPathChecker, GetText.tr("Invalid!"), "/assets/icon/error.png");
                 showJavaPathWarning();
             }
             javaPath.setEnabled(true);
@@ -691,27 +763,56 @@ public class JavaSettingsTab extends AbstractSettingsTab {
     }
 
     private void resetJavaParamCheckLabel() {
-        setLabelState(javaParamChecker, "Visualize java param checker", "/assets/icon/question.png");
-
+        javaParamChecker.setText("");
+        javaParamChecker.setIcon(null);
+        javaParamChecker.setToolTipText(null);
     }
 
     private void setJavaParamCheckState(CheckState state) {
         if (state == CheckState.NotChecking) {
             resetJavaParamCheckLabel();
         } else if (state == CheckState.CheckPending) {
-            setLabelState(javaParamChecker, "Java params change pending", "/assets/icon/warning.png");
+            setLabelState(javaParamChecker, GetText.tr("Java params change pending"), "/assets/icon/warning.png");
         } else if (state == CheckState.Checking) {
-            setLabelState(javaParamChecker, "Checking java params", "/assets/image/loading-bars-small.gif");
+            setLabelState(javaParamChecker, GetText.tr("Checking java params"), "/assets/image/loading-bars-small.gif");
 
             javaParameters.setEnabled(false);
         } else if (state instanceof CheckState.Checked) {
             if (((CheckState.Checked) state).valid) {
                 resetJavaParamCheckLabel();
             } else {
-                setLabelState(javaParamChecker, "Invalid!", "/assets/icon/error.png");
+                setLabelState(javaParamChecker, GetText.tr("Invalid!"), "/assets/icon/error.png");
                 showJavaParamWarning();
             }
             javaParameters.setEnabled(true);
+        }
+    }
+
+    private void resetJavaInstallLocationCheckLabel() {
+        javaInstallLocationChecker.setText("");
+        javaInstallLocationChecker.setIcon(null);
+        javaInstallLocationChecker.setToolTipText(null);
+    }
+
+    private void setJavaInstallLocationState(CheckState state) {
+        if (state == CheckState.NotChecking) {
+            resetJavaInstallLocationCheckLabel();
+        } else if (state == CheckState.CheckPending) {
+            setLabelState(javaInstallLocationChecker, GetText.tr("Java install location change pending"),
+                    "/assets/icon/warning.png");
+        } else if (state == CheckState.Checking) {
+            setLabelState(javaInstallLocationChecker, GetText.tr("Checking java install location path"),
+                    "/assets/image/loading-bars-small.gif");
+
+            javaInstallLocation.setEnabled(false);
+        } else if (state instanceof CheckState.Checked) {
+            if (((CheckState.Checked) state).valid) {
+                resetJavaInstallLocationCheckLabel();
+            } else {
+                setLabelState(javaInstallLocationChecker, GetText.tr("Invalid!"), "/assets/icon/error.png");
+                showJavaInstallLocationWarning();
+            }
+            javaInstallLocation.setEnabled(true);
         }
     }
 
@@ -721,6 +822,7 @@ public class JavaSettingsTab extends AbstractSettingsTab {
         javaPath = null;
         javaPathChecker = null;
         javaParamChecker = null;
+        javaInstallLocationChecker = null;
         javaParameters = null;
     }
 }

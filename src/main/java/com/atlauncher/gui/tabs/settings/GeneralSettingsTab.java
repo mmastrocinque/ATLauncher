@@ -25,6 +25,7 @@ import java.util.Date;
 
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -38,16 +39,20 @@ import com.atlauncher.App;
 import com.atlauncher.builders.HTMLBuilder;
 import com.atlauncher.constants.Constants;
 import com.atlauncher.constants.UIConstants;
+import com.atlauncher.data.CheckState;
 import com.atlauncher.data.LauncherTheme;
 import com.atlauncher.gui.components.JLabelWithHover;
 import com.atlauncher.listener.DelayedSavingKeyListener;
+import com.atlauncher.managers.DialogManager;
 import com.atlauncher.utils.ComboItem;
 import com.atlauncher.utils.OS;
+import com.atlauncher.utils.Utils;
 import com.atlauncher.utils.sort.InstanceSortingStrategies;
 import com.atlauncher.viewmodel.impl.settings.GeneralSettingsViewModel;
 
 public class GeneralSettingsTab extends AbstractSettingsTab {
     private final GeneralSettingsViewModel viewModel;
+    private JLabelWithHover customDownloadsPathChecker;
 
     public GeneralSettingsTab(GeneralSettingsViewModel generalSettingsViewModel) {
         this.viewModel = generalSettingsViewModel;
@@ -62,7 +67,7 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
         gbc.anchor = GridBagConstraints.BELOW_BASELINE_TRAILING;
 
         JLabelWithHover languageLabel = new JLabelWithHover(GetText.tr("Language") + ":", HELP_ICON,
-            GetText.tr("This specifies the language used by the Launcher."));
+                GetText.tr("This specifies the language used by the Launcher."));
         add(languageLabel, gbc);
 
         gbc.gridx++;
@@ -71,7 +76,6 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
 
         JPanel languagePanel = new JPanel();
         languagePanel.setLayout(new BoxLayout(languagePanel, BoxLayout.X_AXIS));
-
 
         JComboBox<String> language = new JComboBox<>(viewModel.getLanguages());
         language.addItemListener(itemEvent -> {
@@ -97,7 +101,7 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
         gbc.anchor = GridBagConstraints.BASELINE_TRAILING;
 
         JLabelWithHover themeLabel = new JLabelWithHover(GetText.tr("Theme") + ":", HELP_ICON,
-            GetText.tr("This sets the theme that the launcher will use."));
+                GetText.tr("This sets the theme that the launcher will use."));
 
         add(themeLabel, gbc);
 
@@ -106,15 +110,16 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
         gbc.anchor = GridBagConstraints.BASELINE_LEADING;
         JComboBox<ComboItem<String>> theme = new JComboBox<>();
 
-        theme.addItemListener(itemEvent -> {
-            if (itemEvent.getStateChange() == ItemEvent.SELECTED)
-                viewModel.setSelectedTheme(((ComboItem<String>) itemEvent.getItem()).getValue());
-        });
-
         for (LauncherTheme launcherTheme : viewModel.getThemes()) {
             theme.addItem(new ComboItem<>(launcherTheme.id, launcherTheme.label));
         }
         addDisposable(viewModel.getSelectedTheme().subscribe(theme::setSelectedIndex));
+
+        theme.addItemListener(itemEvent -> {
+            if (itemEvent.getStateChange() == ItemEvent.SELECTED) {
+                viewModel.setSelectedTheme(((ComboItem<String>) itemEvent.getItem()).getValue());
+            }
+        });
 
         add(theme, gbc);
 
@@ -126,7 +131,7 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
         gbc.anchor = GridBagConstraints.BASELINE_TRAILING;
 
         JLabelWithHover dateFormatLabel = new JLabelWithHover(GetText.tr("Date Format") + ":", HELP_ICON,
-            GetText.tr("This controls the format that dates are displayed in the launcher."));
+                GetText.tr("This controls the format that dates are displayed in the launcher."));
 
         add(dateFormatLabel, gbc);
 
@@ -137,16 +142,16 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
 
         Date exampleDate = viewModel.getDate();
 
-        dateFormat.addItemListener(itemEvent -> {
-            if (itemEvent.getStateChange() == ItemEvent.SELECTED)
-                viewModel.setDateFormat(((ComboItem<String>) itemEvent.getItem()).getValue());
-        });
-
         for (String format : viewModel.getDateFormats()) {
             dateFormat.addItem(new ComboItem<>(format, new SimpleDateFormat(format).format(exampleDate)));
         }
 
         addDisposable(viewModel.getDateFormat().subscribe(dateFormat::setSelectedIndex));
+
+        dateFormat.addItemListener(itemEvent -> {
+            if (itemEvent.getStateChange() == ItemEvent.SELECTED)
+                viewModel.setDateFormat(((ComboItem<String>) itemEvent.getItem()).getValue());
+        });
 
         add(dateFormat, gbc);
 
@@ -158,7 +163,7 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
         gbc.anchor = GridBagConstraints.BASELINE_TRAILING;
 
         JLabelWithHover instanceTitleFormatLabel = new JLabelWithHover(GetText.tr("Instance Title Format") + ":",
-            HELP_ICON, GetText.tr("This controls the format that instances titles are shown as."));
+                HELP_ICON, GetText.tr("This controls the format that instances titles are shown as."));
 
         add(instanceTitleFormatLabel, gbc);
 
@@ -167,17 +172,17 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
         gbc.anchor = GridBagConstraints.BASELINE_LEADING;
         JComboBox<ComboItem<String>> instanceTitleFormat = new JComboBox<>();
 
+        for (String format : viewModel.getInstanceTitleFormats()) {
+            instanceTitleFormat.addItem(new ComboItem<>(format, String.format(format, GetText.tr("Instance Name"),
+                    GetText.tr("Pack Name"), GetText.tr("Pack Version"), GetText.tr("Minecraft Version"))));
+        }
+
+        addDisposable(viewModel.getInstanceFormat().subscribe(instanceTitleFormat::setSelectedIndex));
+
         instanceTitleFormat.addItemListener(itemEvent -> {
             if (itemEvent.getStateChange() == ItemEvent.SELECTED)
                 viewModel.setInstanceTitleFormat(((ComboItem<String>) itemEvent.getItem()).getValue());
         });
-
-        for (String format : viewModel.getInstanceTitleFormats()) {
-            instanceTitleFormat.addItem(new ComboItem<>(format, String.format(format, GetText.tr("Instance Name"),
-                GetText.tr("Pack Name"), GetText.tr("Pack Version"), GetText.tr("Minecraft Version"))));
-        }
-
-        addDisposable(viewModel.getInstanceFormat().subscribe(instanceTitleFormat::setSelectedIndex));
 
         add(instanceTitleFormat, gbc);
 
@@ -189,7 +194,7 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
         gbc.anchor = GridBagConstraints.BASELINE_TRAILING;
 
         JLabelWithHover selectedTabOnStartupLabel = new JLabelWithHover(GetText.tr("Default Tab") + ":", HELP_ICON,
-            GetText.tr("Which tab to have selected by default when opening the launcher."));
+                GetText.tr("Which tab to have selected by default when opening the launcher."));
 
         add(selectedTabOnStartupLabel, gbc);
 
@@ -199,7 +204,7 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
         JComboBox<ComboItem<Integer>> selectedTabOnStartup = new JComboBox<>();
         selectedTabOnStartup.addItem(new ComboItem<>(UIConstants.LAUNCHER_NEWS_TAB, GetText.tr("News")));
         selectedTabOnStartup
-            .addItem(new ComboItem<>(UIConstants.LAUNCHER_CREATE_PACK_TAB, GetText.tr("Create Pack")));
+                .addItem(new ComboItem<>(UIConstants.LAUNCHER_CREATE_PACK_TAB, GetText.tr("Create Pack")));
         selectedTabOnStartup.addItem(new ComboItem<>(UIConstants.LAUNCHER_PACKS_TAB, GetText.tr("Packs")));
         selectedTabOnStartup.addItem(new ComboItem<>(UIConstants.LAUNCHER_INSTANCES_TAB, GetText.tr("Instances")));
         selectedTabOnStartup.addItem(new ComboItem<>(UIConstants.LAUNCHER_SERVERS_TAB, GetText.tr("Servers")));
@@ -224,20 +229,21 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
         gbc.anchor = GridBagConstraints.BASELINE_TRAILING;
 
         JLabelWithHover defaultInstanceSortingLabel = new JLabelWithHover(GetText.tr("Default Instance Sort") + ":",
-            HELP_ICON,
-            GetText.tr("Default sorting of instances under the Instances tab."));
+                HELP_ICON,
+                GetText.tr("Default sorting of instances under the Instances tab."));
 
         add(defaultInstanceSortingLabel, gbc);
 
         gbc.gridx++;
         gbc.insets = UIConstants.FIELD_INSETS;
         gbc.anchor = GridBagConstraints.BASELINE_LEADING;
-        JComboBox<InstanceSortingStrategies> defaultInstanceSorting = new JComboBox<>(InstanceSortingStrategies.values());
+        JComboBox<InstanceSortingStrategies> defaultInstanceSorting = new JComboBox<>(
+                InstanceSortingStrategies.values());
+        addDisposable(viewModel.getInstanceSortingObservable().subscribe(defaultInstanceSorting::setSelectedIndex));
         defaultInstanceSorting.addItemListener(itemEvent -> {
             if (itemEvent.getStateChange() == ItemEvent.SELECTED)
                 viewModel.setInstanceSorting((InstanceSortingStrategies) itemEvent.getItem());
         });
-        addDisposable(viewModel.getInstanceSortingObservable().subscribe(defaultInstanceSorting::setSelectedIndex));
 
         add(defaultInstanceSorting, gbc);
 
@@ -249,9 +255,9 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
         gbc.insets = UIConstants.LABEL_INSETS;
         gbc.anchor = GridBagConstraints.BASELINE_TRAILING;
         JLabelWithHover customDownloadsPathLabel = new JLabelWithHover(GetText.tr("Downloads Folder") + ":", HELP_ICON,
-            new HTMLBuilder().center().split(100).text(GetText.tr(
-                    "This setting allows you to change the Downloads folder that the launcher looks in when downloading browser mods."))
-                .build());
+                new HTMLBuilder().center().split(100).text(GetText.tr(
+                        "This setting allows you to change the Downloads folder that the launcher looks in when downloading browser mods."))
+                        .build());
         add(customDownloadsPathLabel, gbc);
 
         gbc.gridx++;
@@ -261,19 +267,21 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
         customDownloadsPathPanel.setLayout(new BoxLayout(customDownloadsPathPanel, BoxLayout.X_AXIS));
 
         JTextField customDownloadsPath = new JTextField(16);
+        customDownloadsPathChecker = new JLabelWithHover("", null, null);
         addDisposable(viewModel.getCustomsDownloadPath().subscribe(customDownloadsPath::setText));
         customDownloadsPath.addKeyListener(
-            new DelayedSavingKeyListener(
-                100,
-                () -> viewModel.setCustomsDownloadPath(customDownloadsPath.getText()),
-                viewModel::setCustomsDownloadPathPending
-            )
-        );
+                new DelayedSavingKeyListener(
+                        500,
+                        () -> viewModel.setCustomsDownloadPath(customDownloadsPath.getText()),
+                        viewModel::setCustomsDownloadPathPending));
+        addDisposable(viewModel.getCustomDownloadsPathChecker().subscribe(this::setCustomDownloadsPathCheckState));
 
         JButton customDownloadsPathResetButton = new JButton(GetText.tr("Reset"));
 
-        customDownloadsPathResetButton.addActionListener(
-            e -> viewModel.resetCustomDownloadPath());
+        customDownloadsPathResetButton.addActionListener(e -> {
+            viewModel.resetCustomDownloadPath();
+            resetCustomDownloadsPathCheckLabel();
+        });
 
         JButton customDownloadsPathBrowseButton = new JButton(GetText.tr("Browse"));
         customDownloadsPathBrowseButton.addActionListener(e -> {
@@ -286,10 +294,14 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
             if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
                 File selectedPath = chooser.getSelectedFile();
                 customDownloadsPath.setText(selectedPath.getAbsolutePath());
+                viewModel.setCustomsDownloadPath(selectedPath.getAbsolutePath());
+                viewModel.setCustomsDownloadPathPending();
             }
         });
 
         customDownloadsPathPanel.add(customDownloadsPath);
+        customDownloadsPathPanel.add(Box.createHorizontalStrut(5));
+        customDownloadsPathPanel.add(customDownloadsPathChecker);
         customDownloadsPathPanel.add(Box.createHorizontalStrut(5));
         customDownloadsPathPanel.add(customDownloadsPathResetButton);
         customDownloadsPathPanel.add(Box.createHorizontalStrut(5));
@@ -304,7 +316,7 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
         gbc.insets = UIConstants.LABEL_INSETS;
         gbc.anchor = GridBagConstraints.BASELINE_TRAILING;
         JLabelWithHover keepLauncherOpenLabel = new JLabelWithHover(GetText.tr("Keep Launcher Open") + "?", HELP_ICON,
-            GetText.tr("This determines if ATLauncher should stay open or exit after Minecraft has exited"));
+                GetText.tr("This determines if ATLauncher should stay open or exit after Minecraft has exited"));
         add(keepLauncherOpenLabel, gbc);
 
         gbc.gridx++;
@@ -322,7 +334,7 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
         gbc.insets = UIConstants.LABEL_INSETS;
         gbc.anchor = GridBagConstraints.BASELINE_TRAILING;
         JLabelWithHover enableConsoleLabel = new JLabelWithHover(GetText.tr("Enable Console") + "?", HELP_ICON,
-            GetText.tr("If you want the console to be visible when opening the Launcher."));
+                GetText.tr("If you want the console to be visible when opening the Launcher."));
         add(enableConsoleLabel, gbc);
 
         gbc.gridx++;
@@ -340,9 +352,9 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
         gbc.insets = UIConstants.LABEL_INSETS;
         gbc.anchor = GridBagConstraints.BASELINE_TRAILING;
         JLabelWithHover enableTrayIconLabel = new JLabelWithHover(GetText.tr("Enable Tray Menu") + "?", HELP_ICON,
-            new HTMLBuilder().center().split(100).text(GetText.tr(
-                    "The Tray Menu is a little icon that shows in your system taskbar which allows you to perform different functions to do various things with the launcher such as hiding or showing the console, killing Minecraft or closing ATLauncher."))
-                .build());
+                new HTMLBuilder().center().split(100).text(GetText.tr(
+                        "The Tray Menu is a little icon that shows in your system taskbar which allows you to perform different functions to do various things with the launcher such as hiding or showing the console, killing Minecraft or closing ATLauncher."))
+                        .build());
         add(enableTrayIconLabel, gbc);
 
         gbc.gridx++;
@@ -360,15 +372,16 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
         gbc.insets = UIConstants.LABEL_INSETS;
         gbc.anchor = GridBagConstraints.BASELINE_TRAILING;
         JLabelWithHover enableDiscordIntegrationLabel = new JLabelWithHover(
-            GetText.tr("Enable Discord Integration") + "?", HELP_ICON,
-            GetText.tr("This will enable showing which pack you're playing in Discord."));
+                GetText.tr("Enable Discord Integration") + "?", HELP_ICON,
+                GetText.tr("This will enable showing which pack you're playing in Discord."));
         add(enableDiscordIntegrationLabel, gbc);
 
         gbc.gridx++;
         gbc.insets = UIConstants.CHECKBOX_FIELD_INSETS;
         gbc.anchor = GridBagConstraints.BASELINE_LEADING;
         JCheckBox enableDiscordIntegration = new JCheckBox();
-        enableDiscordIntegration.addItemListener(e -> viewModel.setEnableDiscordIntegration(e.getStateChange() == ItemEvent.SELECTED));
+        enableDiscordIntegration
+                .addItemListener(e -> viewModel.setEnableDiscordIntegration(e.getStateChange() == ItemEvent.SELECTED));
         addDisposable(viewModel.getEnableDiscordIntegration().subscribe(enableDiscordIntegration::setSelected));
         enableDiscordIntegration.setEnabled(!OS.isArm());
         add(enableDiscordIntegration, gbc);
@@ -383,21 +396,20 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
             gbc.insets = UIConstants.LABEL_INSETS;
             gbc.anchor = GridBagConstraints.BASELINE_TRAILING;
             JLabelWithHover enableFeralGamemodeLabel = new JLabelWithHover(GetText.tr("Enable Feral Gamemode") + "?",
-                HELP_ICON, GetText.tr("This will enable Feral Gamemode for packs launched."));
+                    HELP_ICON, GetText.tr("This will enable Feral Gamemode for packs launched."));
             add(enableFeralGamemodeLabel, gbc);
 
             gbc.gridx++;
             gbc.insets = UIConstants.CHECKBOX_FIELD_INSETS;
             gbc.anchor = GridBagConstraints.BASELINE_LEADING;
             JCheckBox enableFeralGamemode = new JCheckBox();
-            enableFeralGamemode.addItemListener(e ->
-                viewModel.setEnableFeralGameMode(e.getStateChange() == ItemEvent.SELECTED)
-            );
+            enableFeralGamemode
+                    .addItemListener(e -> viewModel.setEnableFeralGameMode(e.getStateChange() == ItemEvent.SELECTED));
             addDisposable(viewModel.getEnableFeralGameMode().subscribe(enableFeralGamemode::setSelected));
 
             if (!gameModeExistsInPath) {
                 enableFeralGamemodeLabel.setToolTipText(GetText.tr(
-                    "This will enable Feral Gamemode for packs launched (disabled because gamemoderun not found in PATH, please install Feral Gamemode or add it to your PATH)."));
+                        "This will enable Feral Gamemode for packs launched (disabled because gamemoderun not found in PATH, please install Feral Gamemode or add it to your PATH)."));
                 enableFeralGamemodeLabel.setEnabled(false);
 
                 enableFeralGamemode.setEnabled(false);
@@ -413,9 +425,9 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
         gbc.insets = UIConstants.LABEL_INSETS;
         gbc.anchor = GridBagConstraints.BASELINE_TRAILING;
         JLabelWithHover disableCustomFontsLabel = new JLabelWithHover(GetText.tr("Disable Custom Fonts?"), HELP_ICON,
-            new HTMLBuilder().center().split(100).text(GetText.tr(
-                    "This will disable custom fonts used by themes. If your system has issues with font display not looking right, you can disable this to switch to a default compatible font."))
-                .build());
+                new HTMLBuilder().center().split(100).text(GetText.tr(
+                        "This will disable custom fonts used by themes. If your system has issues with font display not looking right, you can disable this to switch to a default compatible font."))
+                        .build());
         add(disableCustomFontsLabel, gbc);
 
         gbc.gridx++;
@@ -435,19 +447,18 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
         gbc.insets = UIConstants.LABEL_INSETS;
         gbc.anchor = GridBagConstraints.BASELINE_TRAILING;
         JLabelWithHover rememberWindowSizePositionLabel = new JLabelWithHover(
-            GetText.tr("Remember Window Size & Positions?"), HELP_ICON,
-            new HTMLBuilder().center().split(100).text(GetText.tr(
-                    "This will remember the windows positions and size so they keep the same size and position when you restart the launcher."))
-                .build());
+                GetText.tr("Remember Window Size & Positions?"), HELP_ICON,
+                new HTMLBuilder().center().split(100).text(GetText.tr(
+                        "This will remember the windows positions and size so they keep the same size and position when you restart the launcher."))
+                        .build());
         add(rememberWindowSizePositionLabel, gbc);
 
         gbc.gridx++;
         gbc.insets = UIConstants.CHECKBOX_FIELD_INSETS;
         gbc.anchor = GridBagConstraints.BASELINE_LEADING;
         JCheckBox rememberWindowSizePosition = new JCheckBox();
-        rememberWindowSizePosition.addItemListener(e ->
-            viewModel.setRememberWindowStuff(e.getStateChange() == ItemEvent.SELECTED)
-        );
+        rememberWindowSizePosition
+                .addItemListener(e -> viewModel.setRememberWindowStuff(e.getStateChange() == ItemEvent.SELECTED));
         addDisposable(viewModel.getRememberWindowSizePosition().subscribe(rememberWindowSizePosition::setSelected));
         add(rememberWindowSizePosition, gbc);
 
@@ -458,20 +469,20 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
             gbc.gridy++;
             gbc.insets = UIConstants.LABEL_INSETS;
             gbc.anchor = GridBagConstraints.BASELINE_TRAILING;
-            JLabelWithHover useNativeFilePickerLabel = new JLabelWithHover(GetText.tr("Use Native File Picker?"), HELP_ICON,
-                new HTMLBuilder().center().split(100)
-                    .text(GetText
-                        .tr("This will use your operating systems native file picker when selecting files."))
-                    .build());
+            JLabelWithHover useNativeFilePickerLabel = new JLabelWithHover(GetText.tr("Use Native File Picker?"),
+                    HELP_ICON,
+                    new HTMLBuilder().center().split(100)
+                            .text(GetText
+                                    .tr("This will use your operating systems native file picker when selecting files."))
+                            .build());
             add(useNativeFilePickerLabel, gbc);
 
             gbc.gridx++;
             gbc.insets = UIConstants.CHECKBOX_FIELD_INSETS;
             gbc.anchor = GridBagConstraints.BASELINE_LEADING;
             JCheckBox useNativeFilePicker = new JCheckBox();
-            useNativeFilePicker.addItemListener(e ->
-                viewModel.setUseNativeFilePicker(e.getStateChange() == ItemEvent.SELECTED)
-            );
+            useNativeFilePicker
+                    .addItemListener(e -> viewModel.setUseNativeFilePicker(e.getStateChange() == ItemEvent.SELECTED));
             addDisposable(viewModel.getUseNativeFilePicker().subscribe(useNativeFilePicker::setSelected));
             add(useNativeFilePicker, gbc);
         }
@@ -483,19 +494,17 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
         gbc.insets = UIConstants.LABEL_INSETS;
         gbc.anchor = GridBagConstraints.BASELINE_TRAILING;
         JLabelWithHover useRecycleBinLabel = new JLabelWithHover(GetText.tr("Use Recycle Bin/Trash?"), HELP_ICON,
-            new HTMLBuilder().center().split(100)
-                .text(GetText
-                    .tr("This will use your operating systems recycle bin/trash where possible when deleting files/instances/servers instead of just deleting them entirely, allowing you to recover files if you make a mistake or want to get them back."))
-                .build());
+                new HTMLBuilder().center().split(100)
+                        .text(GetText
+                                .tr("This will use your operating systems recycle bin/trash where possible when deleting files/instances/servers instead of just deleting them entirely, allowing you to recover files if you make a mistake or want to get them back."))
+                        .build());
         add(useRecycleBinLabel, gbc);
 
         gbc.gridx++;
         gbc.insets = UIConstants.CHECKBOX_FIELD_INSETS;
         gbc.anchor = GridBagConstraints.BASELINE_LEADING;
         JCheckBox useRecycleBin = new JCheckBox();
-        useRecycleBin.addItemListener(e ->
-            viewModel.setUseRecycleBin(e.getStateChange() == ItemEvent.SELECTED)
-        );
+        useRecycleBin.addItemListener(e -> viewModel.setUseRecycleBin(e.getStateChange() == ItemEvent.SELECTED));
         addDisposable(viewModel.getUseRecycleBin().subscribe(useRecycleBin::setSelected));
         add(useRecycleBin, gbc);
 
@@ -507,19 +516,17 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
             gbc.insets = UIConstants.LABEL_INSETS;
             gbc.anchor = GridBagConstraints.BASELINE_TRAILING;
             JLabelWithHover enableArmSupportLabel = new JLabelWithHover(GetText.tr("Enable ARM Support?"), HELP_ICON,
-                new HTMLBuilder().center().split(100)
-                    .text(GetText
-                        .tr("Support for ARM devices is still experimental. If you experience issues on an ARM based device, please turn this off."))
-                    .build());
+                    new HTMLBuilder().center().split(100)
+                            .text(GetText
+                                    .tr("Support for ARM devices is still experimental. If you experience issues on an ARM based device, please turn this off."))
+                            .build());
             add(enableArmSupportLabel, gbc);
 
             gbc.gridx++;
             gbc.insets = UIConstants.CHECKBOX_FIELD_INSETS;
             gbc.anchor = GridBagConstraints.BASELINE_LEADING;
             JCheckBox enableArmSupport = new JCheckBox();
-            useRecycleBin.addItemListener(e ->
-                viewModel.setEnableArmSupport(e.getStateChange() == ItemEvent.SELECTED)
-            );
+            useRecycleBin.addItemListener(e -> viewModel.setEnableArmSupport(e.getStateChange() == ItemEvent.SELECTED));
             addDisposable(viewModel.getEnableArmSupport().subscribe(useRecycleBin::setSelected));
             add(enableArmSupport, gbc);
         }
@@ -530,10 +537,10 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
         gbc.insets = UIConstants.LABEL_INSETS;
         gbc.anchor = GridBagConstraints.BASELINE_TRAILING;
         JLabelWithHover scanModsOnLaunchLabel = new JLabelWithHover(GetText.tr("Scan Mods On Launch?"), HELP_ICON,
-            new HTMLBuilder().center().split(100)
-                .text(GetText.tr(
-                    "This will scan the mods in instances before launching to ensure they do not contain malware or have been modified since installing."))
-                .build());
+                new HTMLBuilder().center().split(100)
+                        .text(GetText.tr(
+                                "This will scan the mods in instances before launching to ensure they do not contain malware or have been modified since installing."))
+                        .build());
         add(scanModsOnLaunchLabel, gbc);
 
         gbc.gridx++;
@@ -541,9 +548,7 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
         gbc.anchor = GridBagConstraints.BASELINE_LEADING;
         JCheckBox scanModsOnLaunch = new JCheckBox();
         scanModsOnLaunch.setSelected(App.settings.scanModsOnLaunch);
-        scanModsOnLaunch.addItemListener(e ->
-            viewModel.setScanModsOnLaunch(e.getStateChange() == ItemEvent.SELECTED)
-        );
+        scanModsOnLaunch.addItemListener(e -> viewModel.setScanModsOnLaunch(e.getStateChange() == ItemEvent.SELECTED));
         addDisposable(viewModel.getScanModsOnLaunch().subscribe(scanModsOnLaunch::setSelected));
         add(scanModsOnLaunch, gbc);
     }
@@ -558,9 +563,61 @@ public class GeneralSettingsTab extends AbstractSettingsTab {
         return "General";
     }
 
+    private void showCustomDownloadsPathWarning() {
+        DialogManager.okDialog()
+                .setTitle(GetText.tr("Help"))
+                .setContent(
+                        new HTMLBuilder()
+                                .center()
+                                .text(
+                                        GetText.tr(
+                                                "The Downloads Folder Path you set is incorrect.<br/><br/>Please verify it points to a folder and try again."))
+                                .build())
+                .setType(DialogManager.ERROR)
+                .show();
+    }
+
+    private void setLabelState(String tooltip, String path) {
+        try {
+            customDownloadsPathChecker.setToolTipText(tooltip);
+            ImageIcon icon = Utils.getIconImage(path);
+            if (icon != null) {
+                customDownloadsPathChecker.setIcon(icon);
+                icon.setImageObserver(customDownloadsPathChecker);
+            }
+        } catch (NullPointerException ignored) {
+        }
+    }
+
+    private void resetCustomDownloadsPathCheckLabel() {
+        customDownloadsPathChecker.setText("");
+        customDownloadsPathChecker.setIcon(null);
+        customDownloadsPathChecker.setToolTipText(null);
+    }
+
+    private void setCustomDownloadsPathCheckState(CheckState state) {
+        if (state == CheckState.NotChecking) {
+            resetCustomDownloadsPathCheckLabel();
+        } else if (state == CheckState.CheckPending) {
+            setLabelState(GetText.tr("Downloads folder path change pending"),
+                    "/assets/icon/warning.png");
+        } else if (state == CheckState.Checking) {
+            setLabelState(GetText.tr("Checking downloads folder path"),
+                    "/assets/image/loading-bars-small.gif");
+        } else if (state instanceof CheckState.Checked) {
+            if (((CheckState.Checked) state).valid) {
+                resetCustomDownloadsPathCheckLabel();
+            } else {
+                setLabelState(GetText.tr("Invalid!"), "/assets/icon/error.png");
+                showCustomDownloadsPathWarning();
+            }
+        }
+    }
+
     @Override
     protected void onDestroy() {
         removeAll();
+        customDownloadsPathChecker = null;
     }
 
     @Override

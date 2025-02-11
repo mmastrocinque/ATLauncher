@@ -17,14 +17,13 @@
  */
 package com.atlauncher.gui.tabs;
 
-import static java.lang.Math.max;
-import static java.lang.Math.min;
-
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import static java.lang.Math.max;
+import static java.lang.Math.min;
 import java.util.List;
 
 import javax.annotation.Nullable;
@@ -61,6 +60,10 @@ import com.atlauncher.managers.DialogManager;
 import com.atlauncher.utils.ComboItem;
 import com.atlauncher.viewmodel.base.ICreatePackViewModel;
 import com.atlauncher.viewmodel.impl.CreatePackViewModel;
+import com.formdev.flatlaf.ui.FlatScrollPaneBorder;
+
+import io.reactivex.rxjava3.core.Observable;
+import io.reactivex.rxjava3.subjects.BehaviorSubject;
 
 public class CreatePackTab extends HierarchyPanel implements Tab {
     private JTextField nameField;
@@ -146,10 +149,9 @@ public class CreatePackTab extends HierarchyPanel implements Tab {
         LockingPreservingCaretTextSetter nameFieldSetter = new LockingPreservingCaretTextSetter(nameField);
         viewModel.name().subscribe((it) -> nameFieldSetter.setText(it.orElse(null)));
         nameField.addKeyListener(new StatefulTextKeyAdapter(
-            (e) -> viewModel.setName(nameField.getText()),
-            (e) -> nameFieldSetter.setLocked(true),
-            (e) -> SwingUtilities.invokeLater(() -> nameFieldSetter.setLocked(false))
-        ));
+                (e) -> viewModel.setName(nameField.getText()),
+                (e) -> nameFieldSetter.setLocked(true),
+                (e) -> SwingUtilities.invokeLater(() -> nameFieldSetter.setLocked(false))));
         mainPanel.add(nameField, gbc);
 
         // Description
@@ -164,17 +166,18 @@ public class CreatePackTab extends HierarchyPanel implements Tab {
         gbc.anchor = GridBagConstraints.BASELINE_LEADING;
         JScrollPane descriptionScrollPane = new JScrollPane(
                 JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        descriptionScrollPane.setBorder(new FlatScrollPaneBorder());
         descriptionScrollPane.setPreferredSize(new Dimension(450, 80));
         descriptionScrollPane.setViewportView(descriptionField);
 
         descriptionField.setLineWrap(true);
-        LockingPreservingCaretTextSetter descriptionFieldSetter = new LockingPreservingCaretTextSetter(descriptionField);
+        LockingPreservingCaretTextSetter descriptionFieldSetter = new LockingPreservingCaretTextSetter(
+                descriptionField);
         viewModel.description().subscribe((it) -> descriptionFieldSetter.setText(it.orElse(null)));
         descriptionField.addKeyListener(new StatefulTextKeyAdapter(
-            (e) -> viewModel.setDescription(descriptionField.getText()),
-            (e) -> descriptionFieldSetter.setLocked(true),
-            (e) -> SwingUtilities.invokeLater(() -> descriptionFieldSetter.setLocked(false))
-        ));
+                (e) -> viewModel.setDescription(descriptionField.getText()),
+                (e) -> descriptionFieldSetter.setLocked(true),
+                (e) -> SwingUtilities.invokeLater(() -> descriptionFieldSetter.setLocked(false))));
         mainPanel.add(descriptionScrollPane, gbc);
 
         // Minecraft Version
@@ -215,6 +218,7 @@ public class CreatePackTab extends HierarchyPanel implements Tab {
         gbc.anchor = GridBagConstraints.BASELINE_LEADING;
         JScrollPane minecraftVersionScrollPane = new JScrollPane(
                 JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        minecraftVersionScrollPane.setBorder(new FlatScrollPaneBorder());
         minecraftVersionScrollPane.setPreferredSize(new Dimension(450, 300));
         setupMinecraftVersionsTable();
         minecraftVersionScrollPane.setViewportView(minecraftVersionTable);
@@ -346,8 +350,10 @@ public class CreatePackTab extends HierarchyPanel implements Tab {
     }
 
     private void setupLoaderLegacyFabricButton(JPanel loaderTypePanel) {
-        addDisposable(viewModel.loaderTypeLegacyFabricSelected().subscribe(loaderTypeLegacyFabricRadioButton::setSelected));
-        addDisposable(viewModel.loaderTypeLegacyFabricEnabled().subscribe(loaderTypeLegacyFabricRadioButton::setEnabled));
+        addDisposable(
+                viewModel.loaderTypeLegacyFabricSelected().subscribe(loaderTypeLegacyFabricRadioButton::setSelected));
+        addDisposable(
+                viewModel.loaderTypeLegacyFabricEnabled().subscribe(loaderTypeLegacyFabricRadioButton::setEnabled));
         addDisposable(viewModel.isLegacyFabricVisible().subscribe(loaderTypeLegacyFabricRadioButton::setVisible));
         loaderTypeLegacyFabricRadioButton.addActionListener(
                 e -> viewModel.setLoaderType(
@@ -467,6 +473,9 @@ public class CreatePackTab extends HierarchyPanel implements Tab {
                 }
             }
         });
+
+        BehaviorSubject<Boolean> isTableSetup = BehaviorSubject.createDefault(false);
+
         addDisposable(viewModel.minecraftVersions().subscribe((minecraftVersions) -> {
             viewModel.setVersionTableLoading(true);
 
@@ -493,21 +502,25 @@ public class CreatePackTab extends HierarchyPanel implements Tab {
             }
 
             // refresh the table
-            if (minecraftVersionTable != null)
-                minecraftVersionTable.revalidate();
-
-            viewModel.setVersionTableLoading(false);
-        }));
-        addDisposable(viewModel.selectedMinecraftVersionIndex().subscribe(it -> {
             if (minecraftVersionTable != null) {
-                int rowCount = minecraftVersionTable.getRowCount();
-
-                if (it < rowCount) {
-                    minecraftVersionTable.setRowSelectionInterval(it, it);
-                    minecraftVersionTable.revalidate();
-                }
+                minecraftVersionTable.revalidate();
             }
+            isTableSetup.onNext(true);
         }));
+
+        addDisposable(Observable.combineLatest(
+                isTableSetup.filter(setup -> setup),
+                viewModel.selectedMinecraftVersionIndex(),
+                (setup, index) -> index).subscribe(it -> {
+                    if (minecraftVersionTable != null) {
+                        int rowCount = minecraftVersionTable.getRowCount();
+
+                        if (it < rowCount) {
+                            minecraftVersionTable.setRowSelectionInterval(it, it);
+                            minecraftVersionTable.revalidate();
+                        }
+                    }
+                }));
 
         TableColumnModel cm = minecraftVersionTable.getColumnModel();
         cm.getColumn(0).setResizable(false);

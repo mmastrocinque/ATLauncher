@@ -83,6 +83,7 @@ public class MCLauncher {
         processBuilder.directory(instance.getRootDirectory());
         processBuilder.redirectErrorStream(true);
         processBuilder.environment().remove("_JAVA_OPTIONS"); // Remove any _JAVA_OPTIONS, they are a PAIN
+        processBuilder.environment().putAll(getEnvironmentVariables(instance)); // Add in any environment variables
         return processBuilder.start();
     }
 
@@ -325,8 +326,6 @@ public class MCLauncher {
             System.out.println("Okay you can look again, you saw NOTHING!");
         }
 
-        arguments.add("-Dfml.log.level=" + App.settings.forgeLoggingLevel);
-
         if (instance.logging != null && instance.logging.client != null) {
             LoggingClient loggingClient = instance.logging.client;
 
@@ -513,5 +512,18 @@ public class MCLauncher {
         argsString = argsString.replace(account.getSessionToken(), "REDACTED");
 
         return argsString;
+    }
+
+    private static Map<String, String> getEnvironmentVariables(Instance instance) {
+        Map<String, String> env = new LinkedHashMap<>();
+        Boolean useDedicatedGpu = Optional.ofNullable(instance.launcher.useDedicatedGpu).orElse(App.settings.useDedicatedGpu);
+
+        if (OS.isLinux() && useDedicatedGpu) {
+            env.put("DRI_PRIME", "1");
+            env.put("__NV_PRIME_RENDER_OFFLOAD", "1");
+            env.put("__GLX_VENDOR_LIBRARY_NAME", "nvidia");
+        }
+
+        return env;
     }
 }
